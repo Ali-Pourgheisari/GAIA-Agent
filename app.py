@@ -15,6 +15,7 @@ from langgraph.graph import StateGraph, START, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AnyMessage, SystemMessage
 from agent import graph, download_attachment
+import base64
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -36,7 +37,19 @@ class BasicAgent:
         if attachment_path and attachment_path.suffix.lower() == ".py":
             code = attachment_path.read_text(encoding="utf-8")
             content += f"\n\nAttached Python source:\n```python\n{code}\n```"
-
+        elif attachment_path and attachment_path.suffix.lower() == ".png":
+            image_bytes = attachment_path.read_bytes()
+            image_b64 = base64.b64encode(image_bytes).decode("ascii")
+            content = [
+                {"type": "text", "text": question},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_b64}"
+                    },
+                },
+            ]
+        
         result = graph.invoke({
             "messages": [HumanMessage(content=content)]
         })
