@@ -1,2 +1,7 @@
-gradio
+gradio[oauth]
 requests
+python-dotenv
+pandas
+langgraph
+langchain-core
+langchain-openai
