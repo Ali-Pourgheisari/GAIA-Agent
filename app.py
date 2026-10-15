@@ -13,7 +13,8 @@ import os
 from typing import TypedDict, List, Dict, Any, Optional
 from langgraph.graph import StateGraph, START, END
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AnyMessage, SystemMessage
+from agent import graph, download_attachment
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -24,11 +25,24 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
-    def __call__(self, question: str) -> str:
+
+    def __call__(self, question: str, task_id: str = "", file_name: str = "") -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}...")
-        fixed_answer = "This is a default answer."
-        print(f"Agent returning fixed answer: {fixed_answer}")
-        return fixed_answer
+        attachment_path = None
+        if file_name:
+            attachment_path = download_attachment(task_id, file_name)
+
+        content = question
+        if attachment_path and attachment_path.suffix.lower() == ".py":
+            code = attachment_path.read_text(encoding="utf-8")
+            content += f"\n\nAttached Python source:\n```python\n{code}\n```"
+
+        result = graph.invoke({
+            "messages": [HumanMessage(content=content)]
+        })
+        answer = result["messages"][-1].content
+        print(f"Agent returning answer: {answer}")
+        return answer
 
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
@@ -91,7 +105,11 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
             print(f"Skipping item with missing task_id or question: {item}")
             continue
         try:
-            submitted_answer = agent(question_text)
+            submitted_answer = agent(
+                question_text,
+                task_id=task_id,
+                file_name=item.get("file_name", ""),
+            )
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
             results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": submitted_answer})
         except Exception as e:

@@ -5,3 +5,5 @@ pandas
 langgraph
 langchain-core
 langchain-openai
+ddgs
+beautifulsoup4
