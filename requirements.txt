@@ -7,3 +7,5 @@ langchain-core
 langchain-openai
 ddgs
 beautifulsoup4
+openai
+openpyxl

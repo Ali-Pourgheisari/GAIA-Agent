@@ -14,7 +14,7 @@ from typing import TypedDict, List, Dict, Any, Optional
 from langgraph.graph import StateGraph, START, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AnyMessage, SystemMessage
-from agent import graph, download_attachment
+from agent import graph, download_attachment, transcribe_audio
 import base64
 
 # (Keep Constants as is)
@@ -37,15 +37,29 @@ class BasicAgent:
         if attachment_path and attachment_path.suffix.lower() == ".py":
             code = attachment_path.read_text(encoding="utf-8")
             content += f"\n\nAttached Python source:\n```python\n{code}\n```"
-        elif attachment_path and attachment_path.suffix.lower() == ".png":
+        elif attachment_path and attachment_path.suffix.lower() == ".mp3":
+            transcription = transcribe_audio(attachment_path)
+            content += f"\n\nTranscribed audio:\n{transcription}"
+        elif attachment_path and attachment_path.suffix.lower() == ".xlsx":
+            sheets = pd.read_excel(
+                attachment_path,
+                sheet_name=None,
+                header=None,
+                engine="openpyxl",
+            )
+            for sheet_name, table in sheets.items():
+                table_text = table.to_string(index=False, header=False)
+                content += f"\n\nAttached Excel sheet: {sheet_name}\n{table_text}"
+        elif attachment_path and attachment_path.suffix.lower() in {".png", ".jpg", ".jpeg"}:
             image_bytes = attachment_path.read_bytes()
             image_b64 = base64.b64encode(image_bytes).decode("ascii")
+            mime_type = "image/png" if attachment_path.suffix.lower() == ".png" else "image/jpeg"
             content = [
                 {"type": "text", "text": question},
                 {
                     "type": "image_url",
                     "image_url": {
-                        "url": f"data:image/png;base64,{image_b64}"
+                        "url": f"data:{mime_type};base64,{image_b64}"
                     },
                 },
             ]

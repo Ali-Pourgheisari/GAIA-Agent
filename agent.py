@@ -14,6 +14,7 @@ from ddgs import DDGS
 import json
 import requests
 from bs4 import BeautifulSoup
+from openai import OpenAI
 
 
 
@@ -70,6 +71,16 @@ def download_attachment(task_id: str, file_name: str) -> Path:
 
     return destination
 
+def transcribe_audio(audio_path: Path) -> str:
+    client = OpenAI()
+
+    with audio_path.open("rb") as audio_file:
+        transcription = client.audio.transcriptions.create(
+            model="gpt-4o-mini-transcribe",
+            file=audio_file,
+        )
+
+    return transcription.text
     
 @tool
 def multiply(a: float, b: float) -> float:
