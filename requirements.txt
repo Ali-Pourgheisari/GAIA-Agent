@@ -9,3 +9,7 @@ ddgs
 beautifulsoup4
 openai
 openpyxl
+yt-dlp[default]
+opencv-python-headless
+imageio-ffmpeg
+pydantic

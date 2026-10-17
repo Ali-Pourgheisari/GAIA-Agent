@@ -15,6 +15,7 @@ from langgraph.graph import StateGraph, START, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AnyMessage, SystemMessage
 from agent import graph, download_attachment, transcribe_audio
+from video_tools import VIDEO_EXTENSIONS
 import base64
 
 # (Keep Constants as is)
@@ -40,6 +41,12 @@ class BasicAgent:
         elif attachment_path and attachment_path.suffix.lower() == ".mp3":
             transcription = transcribe_audio(attachment_path)
             content += f"\n\nTranscribed audio:\n{transcription}"
+        elif attachment_path and attachment_path.suffix.lower() in VIDEO_EXTENSIONS:
+            content += (
+                f"\n\nAttached video: {attachment_path}\n"
+                "Use analyze_video to inspect its visual contents or "
+                "transcribe_video to listen to its audio."
+            )
         elif attachment_path and attachment_path.suffix.lower() == ".xlsx":
             sheets = pd.read_excel(
                 attachment_path,
