@@ -1,5 +1,7 @@
 
+import os
 from pathlib import Path
+import shutil
 from typing import Annotated, TypedDict
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -17,6 +19,8 @@ import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
 from ddgs.exceptions import DDGSException
+from huggingface_hub import hf_hub_download
+from huggingface_hub.errors import EntryNotFoundError, GatedRepoError, HfHubHTTPError
 from video_tools import analyze_video, transcribe_video
 
 
@@ -69,19 +73,49 @@ def route_after_model(state: AgentState):
 def download_attachment(task_id: str, file_name: str) -> Path:
     folder = BASE_DIR / "attachments"
     folder.mkdir(exist_ok=True)
+    name = Path(file_name).name
+    if not name or name in {".", ".."}:
+        raise ValueError("An attachment filename is required.")
+    destination = folder / name
+    if destination.is_file() and destination.stat().st_size:
+        return destination
 
     response = requests.get(
         f"https://agents-course-unit4-scoring.hf.space/files/{task_id}",
         timeout=30,
     )
     if response.status_code == 404:
-        raise FileNotFoundError(
-            f"The course API has no attachment for task {task_id}: {file_name}"
-        )
+        # Retrieve only the requested attachment, never benchmark answers/metadata.
+        try:
+            official_path = hf_hub_download(
+                repo_id="gaia-benchmark/GAIA",
+                filename=f"2023/validation/{name}",
+                repo_type="dataset",
+                token=os.getenv("HF_TOKEN") or None,
+                local_dir=folder / "gaia_dataset",
+            )
+        except GatedRepoError as error:
+            raise PermissionError(
+                "The course API has no attachment, and access to the official GAIA "
+                "dataset is gated. Accept its conditions at "
+                "https://huggingface.co/datasets/gaia-benchmark/GAIA, then ensure "
+                "HF_TOKEN belongs to that account and can read this gated dataset. "
+                "On Hugging Face Spaces, add HF_TOKEN as a Secret. "
+                f"Alternatively, place {name} in the local attachments directory."
+            ) from error
+        except EntryNotFoundError as error:
+            raise FileNotFoundError(
+                f"Neither the course API nor the official GAIA validation folder "
+                f"provided attachment {name} for task {task_id}."
+            ) from error
+        except HfHubHTTPError as error:
+            raise RuntimeError(
+                "The course attachment is missing and the official GAIA download "
+                "failed. Check dataset access, HF_TOKEN permissions, and connectivity."
+            ) from error
+        shutil.copyfile(official_path, destination)
+        return destination
     response.raise_for_status()
-
-    destination = folder / Path(file_name).name
-
     destination.write_bytes(response.content)
 
     return destination

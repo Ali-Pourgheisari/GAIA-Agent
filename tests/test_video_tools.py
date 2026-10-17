@@ -108,6 +108,26 @@ class VideoTests(unittest.TestCase):
             self.assertEqual(video.download_youtube("https://youtu.be/L1vXCYZAYYM"), cached)
             downloader.assert_not_called()
 
+    def test_private_media_cache_avoids_hosted_youtube_download(self):
+        source = self.folder / "original.m4a"
+        source.write_bytes(b"original source audio")
+        with patch.object(video, "ATTACHMENTS", self.folder), patch.dict(video.os.environ, {"VIDEO_MEDIA_REPO": "owner/private-media", "HF_TOKEN": "offline-test-token"}), patch.object(video, "hf_hub_download", return_value=str(source)) as download, patch.object(video, "YoutubeDL") as downloader:
+            result = video.download_youtube("https://youtu.be/1htKBjuUWec", audio_only=True)
+            self.assertEqual(result.read_bytes(), source.read_bytes())
+            self.assertEqual(download.call_args.kwargs["filename"], "videos/1htKBjuUWec/audio.m4a")
+            downloader.assert_not_called()
+
+    def test_media_upload_selection_excludes_answers_and_transcripts(self):
+        from prepare_video_cache import source_media
+        (self.folder / "L1vXCYZAYYM.mp4").write_bytes(b"video")
+        folder = self.folder / "videos" / "1htKBjuUWec"
+        folder.mkdir(parents=True)
+        (folder / "audio.m4a").write_bytes(b"audio")
+        (folder / "video_transcript_example.json").write_text('{"text": "not source media"}')
+        (self.folder / ".env").write_text("HF_TOKEN=not-a-real-token")
+        files = source_media(self.folder)
+        self.assertEqual(set(files), {"videos/L1vXCYZAYYM/video.mp4", "videos/1htKBjuUWec/audio.m4a"})
+
     def test_transcription_extracts_real_audio_and_offsets_segments(self):
         source = self.folder / "speech.wav"
         with wave.open(str(source), "wb") as output:

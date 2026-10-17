@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 from urllib.parse import parse_qs, urlparse
@@ -18,6 +19,8 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from openai import OpenAI, OpenAIError
 from pydantic import BaseModel, Field
+from huggingface_hub import hf_hub_download
+from huggingface_hub.errors import EntryNotFoundError, HfHubHTTPError
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
 
@@ -94,6 +97,37 @@ def _download_filter(info, *, incomplete=False):
     return None
 
 
+def _download_private_media(identifier: str, folder: Path, *, audio_only: bool) -> Path | None:
+    """Fetch original media from the owner's optional private dataset cache."""
+    repo_id = os.getenv("VIDEO_MEDIA_REPO")
+    if not repo_id:
+        return None
+    token = os.getenv("HF_TOKEN")
+    if not token:
+        raise RuntimeError("VIDEO_MEDIA_REPO is configured, but HF_TOKEN is missing. Add a token with read access as a Space Secret.")
+    stem = "audio" if audio_only else "video"
+    extensions = (".m4a", ".webm", ".mp3", ".ogg", ".mp4") if audio_only else (".mp4", ".webm", ".mkv", ".mov", ".avi")
+    for extension in extensions:
+        try:
+            cached = hf_hub_download(
+                repo_id=repo_id,
+                repo_type="dataset",
+                filename=f"videos/{identifier}/{stem}{extension}",
+                token=token,
+                local_dir=ATTACHMENTS / "private_media",
+            )
+        except EntryNotFoundError:
+            continue
+        except HfHubHTTPError as error:
+            raise RuntimeError("Could not read VIDEO_MEDIA_REPO. Check that the dataset is accessible to the account behind the Space's HF_TOKEN.") from error
+        destination = folder / f"{stem}{extension}"
+        shutil.copyfile(cached, destination)
+        if destination.stat().st_size:
+            return destination
+        destination.unlink()
+    return None
+
+
 def download_youtube(url: str, *, audio_only: bool = False) -> Path:
     identifier = youtube_id(url)
     folder = ATTACHMENTS / "videos" / identifier
@@ -109,6 +143,10 @@ def download_youtube(url: str, *, audio_only: bool = False) -> Path:
             path = ATTACHMENTS / f"{identifier}{extension}"
             if path.is_file() and path.stat().st_size:
                 return path
+
+    private_media = _download_private_media(identifier, folder, audio_only=audio_only)
+    if private_media is not None:
+        return private_media
 
     options = {
         "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best" if audio_only else "best[height<=720]/bestvideo[height<=720]",
@@ -128,7 +166,11 @@ def download_youtube(url: str, *, audio_only: bool = False) -> Path:
                 raise RuntimeError("YouTube returned no downloadable clip.")
             path = Path(downloader.prepare_filename(info))
     except DownloadError as error:
-        raise RuntimeError(f"YouTube download failed: {error}") from error
+        raise RuntimeError(
+            f"YouTube download failed: {error}. If hosted downloads are blocked, "
+            "add the original clip to the owner's private VIDEO_MEDIA_REPO "
+            "using prepare_video_cache.py; do not substitute a saved answer."
+        ) from error
     if not path.is_file() or not path.stat().st_size:
         raise RuntimeError("The download was unavailable or exceeded the 15-minute/150-MB limit.")
     return path

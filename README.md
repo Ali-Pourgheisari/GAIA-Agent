@@ -14,6 +14,20 @@ hf_oauth_expiration_minutes: 480
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
 
+## Missing course attachments
+
+The downloader reuses nonempty files in `attachments/`, then tries the course
+API. If the course API returns 404, it requests only the named attachment from
+`2023/validation/` in the official `gaia-benchmark/GAIA` dataset. No benchmark
+answers or metadata are downloaded by this fallback.
+
+The official dataset is gated: accept its conditions while logged into your
+Hugging Face account at https://huggingface.co/datasets/gaia-benchmark/GAIA.
+Your `HF_TOKEN` must belong to an account with access and permit reading the
+gated dataset. Set it in local `.env` or as a Space **Secret**. Alternatively,
+place the original attachment under its expected filename in `attachments/`.
+Keep downloaded dataset files private; the attachments directory is ignored by Git.
+
 ## Video tools
 
 Install the project requirements in your virtual environment. Set `OPENAI_API_KEY`
@@ -90,3 +104,27 @@ hosted Spaces. Download/API errors are returned to the agent as errors; they are
 not treated as answers. No browser cookies or account passwords are required by
 this implementation. The CLI and extraction commands do not submit benchmark
 answers or publish code.
+
+### Hosted YouTube downloads blocked
+
+When YouTube rejects a Space's IP with a bot-confirmation error, use a private
+cache of original media. Download on your local machine first, then preview:
+
+```bash
+python prepare_video_cache.py --repo YOUR_USERNAME/agent-video-media
+```
+
+The script selects only original video/audio downloads, excluding `.env`,
+transcripts, answer files, frame observations, and benchmark metadata. To upload
+and configure your Space explicitly:
+
+```bash
+python prepare_video_cache.py --repo YOUR_USERNAME/agent-video-media \
+  --upload --space YOUR_USERNAME/Final_Assignment_Template
+```
+
+The target dataset must be private. The script sets the Space's `HF_TOKEN`
+secret and `VIDEO_MEDIA_REPO` variable. These video tools look in local storage,
+then that private dataset, then attempt YouTube. The Space still runs the actual
+vision/transcription analysis on the source files; cached answers are not used.
+Push the code changes to the Space after configuring it.
