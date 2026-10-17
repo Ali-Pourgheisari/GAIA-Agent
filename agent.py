@@ -15,6 +15,7 @@ import json
 import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
+from ddgs.exceptions import DDGSException
 
 
 
@@ -89,11 +90,16 @@ def multiply(a: float, b: float) -> float:
 
 @tool
 def web_search(query: str) -> str:
-    """Perform a web search using DuckDuckGo and return the top result."""
-    results = DDGS().text(query, max_results=3)
-    if results:
-        return json.dumps(results)
-    return "No results found."
+    """Search the web and return page titles, URLs, and snippets."""
+    try:
+        results = DDGS(timeout=15).text(query, max_results=5)
+    except DDGSException as error:
+        return (
+            f"Search failed: {error}. "
+            "Try a shorter or differently worded query."
+        )
+
+    return json.dumps(results) if results else "No results found. Try another query."
 
 @tool
 def read_page(url: str) -> str:
