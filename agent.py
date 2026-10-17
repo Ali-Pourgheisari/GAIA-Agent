@@ -1,6 +1,7 @@
 
 from pathlib import Path
 from typing import Annotated, TypedDict
+from urllib.parse import parse_qs, unquote, urlparse
 
 from dotenv import load_dotenv
 
@@ -21,6 +22,12 @@ from ddgs.exceptions import DDGSException
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
+PAGE_HEADERS = {
+    "User-Agent": (
+        "GAIAStudyAgent/0.1 "
+        "(+https://huggingface.co/spaces/gheysar4real/Final_Assignment_Template)"
+    )
+}
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
@@ -50,7 +57,7 @@ def route_after_model(state: AgentState):
     last_message = state["messages"][-1]
     if last_message.tool_calls:
         return "tools"
-    return END
+    return "final_answer"
 
 def download_attachment(task_id: str, file_name: str) -> Path:
     folder = BASE_DIR / "attachments"
@@ -82,7 +89,7 @@ def transcribe_audio(audio_path: Path) -> str:
         )
 
     return transcription.text
-    
+
 @tool
 def multiply(a: float, b: float) -> float:
     """Multiply two numbers."""
@@ -94,44 +101,129 @@ def web_search(query: str) -> str:
     try:
         results = DDGS(timeout=15).text(query, max_results=5)
     except DDGSException as error:
-        return (
-            f"Search failed: {error}. "
-            "Try a shorter or differently worded query."
-        )
+        return f"Search failed: {error}. Try a different query."
 
     return json.dumps(results) if results else "No results found. Try another query."
 
 @tool
 def read_page(url: str) -> str:
-    """Read the content of a web page."""
+    """Read webpage text, preserving table rows with pipe-separated cells."""
     try:
-        response = requests.get(url, timeout=15)
-        response.raise_for_status()
-        html = response.text
+        response = requests.get(url, headers=PAGE_HEADERS, timeout=15)
+        parsed_url = urlparse(url)
+        host = parsed_url.hostname or ""
+        if (
+            response.status_code == 403
+            and host.endswith(".wikipedia.org")
+            and parsed_url.path.startswith("/wiki/")
+        ):
+            params = {
+                "action": "parse",
+                "page": unquote(parsed_url.path[len("/wiki/"):]),
+                "prop": "text",
+                "format": "json",
+                "formatversion": 2,
+                "redirects": 1,
+            }
+            oldid = parse_qs(parsed_url.query).get("oldid")
+            if oldid:
+                params.pop("page")
+                params["oldid"] = oldid[0]
+
+            api_response = requests.get(
+                f"https://{host}/w/api.php",
+                params=params,
+                headers=PAGE_HEADERS,
+                timeout=15,
+            )
+            if not api_response.ok:
+                return (
+                    "Error reading page: Wikipedia returned HTTP 403, and "
+                    f"its API returned HTTP {api_response.status_code}. "
+                    "Try another accessible source."
+                )
+            data = api_response.json()
+            if "error" in data:
+                return f"Error reading Wikipedia page: {data['error'].get('info', 'API error')}"
+            html = data.get("parse", {}).get("text")
+            if not isinstance(html, str):
+                return "Error reading Wikipedia page: the API returned no page HTML."
+        else:
+            response.raise_for_status()
+            html = response.text
+
         soup = BeautifulSoup(html, "html.parser")
         extract = soup.body or soup  # Fallback to entire soup if body is None
         # Remove script and style elements
         for script_or_style in extract(["script", "style"]):
             script_or_style.decompose()
+
+        # Replace tables in place so their rows survive text extraction.
+        # Process inner tables first when a page contains nested tables.
+        for table in reversed(extract.find_all("table")):
+            rows = []
+            for row in table.find_all("tr"):
+                cells = row.find_all(["th", "td"], recursive=False)
+                if cells:
+                    rows.append(" | ".join(
+                        cell.get_text(separator=" ", strip=True)
+                        for cell in cells
+                    ))
+
+            if rows:
+                caption = table.find("caption", recursive=False)
+                title = caption.get_text(" ", strip=True) if caption else "Table"
+                formatted_table = soup.new_tag("pre")
+                formatted_table.string = (
+                    f"[{title}]\n" + "\n".join(rows) + "\n[End table]"
+                )
+                table.replace_with(formatted_table)
+
         # Get text
         extract = extract.get_text(separator="\n", strip=True)
         return extract
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError) as e:
         return f"Error reading page: {e}"
 
 tools = [multiply, web_search, read_page]
+review_model = model
 model = model.bind_tools(tools)
 tool_node = ToolNode(tools)
+
+FINAL_ANSWER_PROMPT = """Format the supplied draft answer according to the original question.
+Return only the requested answer, without introductory text,
+explanations, citations, or a FINAL ANSWER prefix, unless requested.
+
+Preserve the draft's factual answer. Do not invent missing information.
+Follow requirements such as first name only, surname only, country code,
+alphabetical ordering, and decimal places.
+If the draft cannot determine an answer, preserve that uncertainty.
+"""
+
+
+def final_answer_node(state: AgentState) -> dict:
+    question = state["messages"][0]
+    draft = state["messages"][-1]
+
+    response = review_model.invoke([
+        SystemMessage(content=FINAL_ANSWER_PROMPT),
+        question,
+        HumanMessage(content=f"Draft answer to format:\n{draft.content}"),
+    ])
+
+    return {"messages": [response]}
+
 
 builder = StateGraph(AgentState)
 builder.add_node("model", model_node)
 builder.add_node("tools", tool_node)
+builder.add_node("final_answer", final_answer_node)
 builder.add_edge(START, "model")
 builder.add_edge("tools", "model")
 builder.add_conditional_edges("model", route_after_model)
+builder.add_edge("final_answer", END)
 
 graph = builder.compile()
 
-# if __name__ == "__main__":
-#     text = read_page.invoke({"url": "https://example.com"})
-#     print(text)
+
+
