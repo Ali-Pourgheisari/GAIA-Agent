@@ -58,41 +58,6 @@ and analysis caches stay in `attachments/`, which Git ignores. Successful
 analysis/transcription is cached using the source file and analysis settings.
 The final formatter still prepares the answer for assignment submission.
 
-### Local checks (no submission)
-
-Extract frames and a timestamp manifest without calling a model:
-
-```bash
-python extract_frames.py attachments/L1vXCYZAYYM.mp4 --interval 2
-```
-
-Inspect visual evidence (uses the model):
-
-```bash
-python video_cli.py 'https://www.youtube.com/watch?v=L1vXCYZAYYM' \
-  --question 'What is the highest number of bird species visible simultaneously?'
-```
-
-Investigate a smaller interval more densely:
-
-```bash
-python video_cli.py 'https://www.youtube.com/watch?v=L1vXCYZAYYM' \
-  --question 'How many distinct bird species are visible together?' \
-  --start 25 --end 40 --interval 0.5
-```
-
-Transcribe video dialogue:
-
-```bash
-python video_cli.py 'https://www.youtube.com/watch?v=1htKBjuUWec' --audio
-```
-
-Run offline checks with model/transcription responses mocked:
-
-```bash
-python -m unittest discover -s tests -v
-```
-
 ### Coverage and errors
 
 Visual analysis is based on sampled frames. Its `observed_maximum` is a model
@@ -107,8 +72,7 @@ variable-frame-rate videos. Speech transcription can also contain errors.
 YouTube availability and download restrictions vary between a local machine and
 hosted Spaces. Download/API errors are returned to the agent as errors; they are
 not treated as answers. No browser cookies or account passwords are required by
-this implementation. The CLI and extraction commands do not submit benchmark
-answers or publish code.
+this implementation.
 
 ### Hosted YouTube downloads blocked
 

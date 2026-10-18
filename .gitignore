@@ -5,3 +5,11 @@ __pycache__/
 *.pyo
 *.pyd
 attachments/
+
+# Local development and troubleshooting files
+/debug.py
+/debug_output.txt
+/extract_frames.py
+/hf_login.py
+/video_cli.py
+/tests/
