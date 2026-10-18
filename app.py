@@ -22,11 +22,11 @@ import base64
 # --- Constants ---
 DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 
-# --- Basic Agent Definition ---
+# --- GAIA Agent Definition ---
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
-class BasicAgent:
+class GAIAAgent:
     def __init__(self):
-        print("BasicAgent initialized.")
+        print("GAIA Agent initialized.")
 
     def __call__(self, question: str, task_id: str = "", file_name: str = "") -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}...")
@@ -80,7 +80,7 @@ class BasicAgent:
 
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
-    Fetches all questions, runs the BasicAgent on them, submits all answers,
+    Fetches all questions, runs GAIAAgent on them, submits all answers,
     and displays the results.
     """
     # --- Determine HF Space Runtime URL and Repo URL ---
@@ -99,7 +99,7 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
 
     # 1. Instantiate Agent ( modify this part to create your agent)
     try:
-        agent = BasicAgent()
+        agent = GAIAAgent()
     except Exception as e:
         print(f"Error instantiating agent: {e}")
         return f"Error initializing agent: {e}", None
@@ -204,8 +204,8 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
 
 
 # --- Build Gradio Interface using Blocks ---
-with gr.Blocks() as demo:
-    gr.Markdown("# Basic Agent Evaluation Runner")
+with gr.Blocks(title="GAIA Agent") as demo:
+    gr.Markdown("# GAIA Agent")
     gr.Markdown(
         """
         **Instructions:**
@@ -255,5 +255,5 @@ if __name__ == "__main__":
 
     print("-"*(60 + len(" App Starting ")) + "\n")
 
-    print("Launching Gradio Interface for Basic Agent Evaluation...")
+    print("Launching Gradio Interface for GAIA Agent...")
     demo.launch(debug=True, share=False)

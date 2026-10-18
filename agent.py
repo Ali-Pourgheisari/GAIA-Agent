@@ -29,7 +29,7 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 PAGE_HEADERS = {
     "User-Agent": (
-        "GAIAStudyAgent/0.1 "
+        "GAIAAgent/0.1 "
         "(+https://huggingface.co/spaces/gheysar4real/Final_Assignment_Template)"
     )
 }

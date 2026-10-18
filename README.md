@@ -1,5 +1,5 @@
 ---
-title: Template Final Assignment
+title: GAIA Agent
 emoji: 🕵🏻‍♂️
 colorFrom: indigo
 colorTo: indigo
@@ -11,6 +11,11 @@ hf_oauth: true
 # optional, default duration is 8 hours/480 minutes. Max duration is 30 days/43200 minutes.
 hf_oauth_expiration_minutes: 480
 ---
+
+# GAIA Agent
+
+A LangGraph agent for the Hugging Face Agents Course GAIA assignment, with web
+research, attachment handling, video analysis, and audio transcription tools.
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
 
@@ -111,7 +116,7 @@ When YouTube rejects a Space's IP with a bot-confirmation error, use a private
 cache of original media. Download on your local machine first, then preview:
 
 ```bash
-python prepare_video_cache.py --repo YOUR_USERNAME/agent-video-media
+python prepare_video_cache.py --repo YOUR_USERNAME/gaia-agent-media
 ```
 
 The script selects only original video/audio downloads, excluding `.env`,
@@ -119,8 +124,8 @@ transcripts, answer files, frame observations, and benchmark metadata. To upload
 and configure your Space explicitly:
 
 ```bash
-python prepare_video_cache.py --repo YOUR_USERNAME/agent-video-media \
-  --upload --space YOUR_USERNAME/Final_Assignment_Template
+python prepare_video_cache.py --repo YOUR_USERNAME/gaia-agent-media \
+  --upload --space YOUR_USERNAME/GAIA-Agent
 ```
 
 The target dataset must be private. The script sets the Space's `HF_TOKEN`
@@ -128,3 +133,7 @@ secret and `VIDEO_MEDIA_REPO` variable. These video tools look in local storage,
 then that private dataset, then attempt YouTube. The Space still runs the actual
 vision/transcription analysis on the source files; cached answers are not used.
 Push the code changes to the Space after configuring it.
+
+The existing deployment remains at
+https://huggingface.co/spaces/gheysar4real/Final_Assignment_Template; its repository
+ID is retained so existing deployment links and configuration continue to work.
